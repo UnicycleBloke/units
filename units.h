@@ -198,7 +198,7 @@ using make_ratio = typename std::ratio<N, D>::type;
 // Represents a physical quantity with some particular dimension and ratio. It contains a 
 // single arithmetic data member, typically of a floating point type. A whole family of 
 // types with the same dimension can be created: e.g. m, km, mm, cm, ...
-template <typename T, typename D, typename R = std::ratio<1>>
+template <typename T, typename Tag, typename D, typename R = std::ratio<1>>
 class quantity
 {
 public:
@@ -216,13 +216,14 @@ public:
         candela_u<D::cd::exp>>>);
 
     using type  = T;
+    using tag   = Tag;
     using dim   = D;
     using ratio = R;
 
     explicit constexpr quantity(T value) noexcept : m_value{value} {}
 
     template <typename R2>
-    explicit constexpr quantity(const quantity<T, D, R2>& other) noexcept
+    explicit constexpr quantity(const quantity<T, Tag, D, R2>& other) noexcept
     : m_value{other.value() * R2::num * R::den / R2::den / R::num} 
     {
     }
@@ -231,13 +232,15 @@ public:
 
     // Conversion to quantities with different ratios.
     template <typename R2>
-    constexpr operator quantity<T, D, R2>() const noexcept
+    constexpr operator quantity<T, Tag, D, R2>() const noexcept
     {
-        using Q2 = quantity<T, D, R2>;
+        using Q2 = quantity<T, Tag, D, R2>;
         return Q2(m_value * R::num * R2::den / R::den / R2::num);
     }
 
-    constexpr operator bool() const noexcept
+    // This is problematic unless explicit, because implicit conversion to bool
+    // will allow comparisons to succeed that ought to fail.
+    explicit constexpr operator bool() const noexcept
     {
         return m_value != 0;
     }
@@ -257,7 +260,7 @@ public:
     }
 
     template <typename R2>
-    quantity& operator*=(quantity<T, scalar_d, R2> scalar) noexcept 
+    quantity& operator*=(quantity<T, Tag, scalar_d, R2> scalar) noexcept 
     {
         m_value *= (scalar.value() * R2::num / R2::den);
         return *this;
@@ -273,7 +276,7 @@ public:
     }
 
     template <typename R2>
-    quantity& operator/=(quantity<T, scalar_d, R2> scalar) noexcept 
+    quantity& operator/=(quantity<T, Tag, scalar_d, R2> scalar) noexcept 
     {
         m_value /= (scalar.value() * R2::num / R2::den);
         return *this;
@@ -281,7 +284,7 @@ public:
 
     // It only makes sense to add-assign with quantities having the same dimension.
     template <typename R2>
-    quantity& operator+=(const quantity<T, D, R2>& q2) noexcept
+    quantity& operator+=(const quantity<T, Tag, D, R2>& q2) noexcept
     {
         m_value += (q2.value() * R2::num * R::den / R2::den / R::num);
         return *this;
@@ -289,7 +292,7 @@ public:
 
     // It only makes sense to subtract-assign with quantities having the same dimension.
     template <typename R2>
-    quantity& operator-=(const quantity<T, D, R2>& q2) noexcept
+    quantity& operator-=(const quantity<T, Tag, D, R2>& q2) noexcept
     {
         m_value -= (q2.value() * R2::num * R::den / R2::den / R::num);
         return *this;
@@ -302,85 +305,100 @@ private:
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
+// Simple type function to create a famile of types with the same dimension and tag, but 
+// different ratios.
+template <typename Q, typename R2>
+using quantity_scale = quantity<typename Q::type, typename Q::tag, typename Q::dim, 
+    std::ratio_multiply<typename Q::ratio, R2>>;
+
+template <typename Q1, typename Q2>
+using quantity_multiply = decltype(std::declval<Q1>() * std::declval<Q2>());
+
+template <typename Q1, typename Q2>
+using quantity_divide = decltype(std::declval<Q1>() / std::declval<Q2>());
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////
 // Multiply two quantities to create a new quantity with the relevant dimension and ratio.
-template <typename T, typename D1, typename D2, typename R1, typename R2>
-constexpr auto operator*(const quantity<T, D1, R1>& q1, const quantity<T, D2, R2>& q2) noexcept 
+template <typename T, typename Tag, typename D1, typename D2, typename R1, typename R2>
+constexpr auto operator*(const quantity<T, Tag, D1, R1>& q1, const quantity<T, Tag, D2, R2>& q2) noexcept 
 // Is it really necessary to duplicated return type? auto works with deduction, so no, but
 // I am not certain that it will return Q rather than Q& or whatever.
-    -> quantity<T, dimension_multiply<D1, D2>, std::ratio_multiply<R1, R2>>
+    -> quantity<T, Tag, dimension_multiply<D1, D2>, std::ratio_multiply<R1, R2>>
 {
-    using Q = quantity<T, dimension_multiply<D1, D2>, std::ratio_multiply<R1, R2>>;
+    using Q = quantity<T, Tag, dimension_multiply<D1, D2>, std::ratio_multiply<R1, R2>>;
     return Q(q1.value() * q2.value());
 }
 
 // Multiply by a scalar.
-template <typename T, typename D, typename R, typename U>
-constexpr quantity<T, D, R> operator*(const quantity<T, D, R>& q, U scalar) noexcept 
+template <typename T, typename Tag, typename D, typename R, typename U>
+constexpr quantity<T, Tag, D, R> operator*(const quantity<T, Tag, D, R>& q, U scalar) noexcept 
 {
     static_assert(std::is_arithmetic<U>::value);
-    return quantity<T, D, R>(q.value() * scalar);
+    return quantity<T, Tag, D, R>(q.value() * scalar);
 }
 
 // Multiply by a scalar.
-template <typename T, typename D, typename R, typename U>
-constexpr quantity<T, D, R> operator*(U scalar, const quantity<T, D, R>& q) noexcept 
+template <typename T, typename Tag, typename D, typename R, typename U>
+constexpr quantity<T, Tag, D, R> operator*(U scalar, const quantity<T, Tag, D, R>& q) noexcept 
 {
     static_assert(std::is_arithmetic<U>::value);
-    return quantity<T, D, R>(q.value() * scalar);
+    return quantity<T, Tag, D, R>(q.value() * scalar);
 }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Divide two quantities to create a new quantity with the relevant dimension and ratio.
-template <typename T, typename D1, typename D2, typename R1, typename R2>
-constexpr auto operator/(const quantity<T, D1, R1>& q1, const quantity<T, D2, R2>& q2) noexcept
-    -> quantity<T, dimension_divide<D1, D2>, std::ratio_divide<R1, R2>>
+template <typename T, typename Tag, typename D1, typename D2, typename R1, typename R2>
+constexpr auto operator/(const quantity<T, Tag, D1, R1>& q1, const quantity<T, Tag, D2, R2>& q2) noexcept
+    -> quantity<T, Tag, dimension_divide<D1, D2>, std::ratio_divide<R1, R2>>
 {
-    using Q = quantity<T, dimension_divide<D1, D2>, std::ratio_divide<R1, R2>>;
+    using Q = quantity<T, Tag, dimension_divide<D1, D2>, std::ratio_divide<R1, R2>>;
     return Q(q1.value() / q2.value());
 }
 
 
 // Divide by a scalar.
-template <typename T, typename D, typename R, typename U>
-constexpr quantity<T, D, R> operator/(const quantity<T, D, R>& q, U scalar) noexcept 
+template <typename T, typename Tag, typename D, typename R, typename U>
+constexpr quantity<T, Tag, D, R> operator/(const quantity<T, Tag, D, R>& q, U scalar) noexcept 
 {
     static_assert(std::is_arithmetic<U>::value);
-    return quantity<T, D, R>(q.value() / scalar);
+    return quantity<T, Tag, D, R>(q.value() / scalar);
 }
 
 // Divide a scalar.
-template <typename T, typename D, typename R, typename U>
-constexpr auto operator/(U scalar, const quantity<T, D, R>& q) noexcept 
-    -> quantity<T, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>>
+template <typename T, typename Tag, typename D, typename R, typename U>
+constexpr auto operator/(U scalar, const quantity<T, Tag, D, R>& q) noexcept 
+    -> quantity<T, Tag, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>>
 {
     // The dimension and the ratio need to be inverted in this case.
     static_assert(std::is_arithmetic<U>::value);
-    return quantity<T, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>>(scalar / q.value());
+    return quantity<T, Tag, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>>(scalar / q.value());
 }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Add two quantities which have the same dimension but may have different ratios.
-template <typename T, typename D1, typename D2, typename R1, typename R2>
-constexpr quantity<T, D1, R1> operator+(const quantity<T, D1, R1>& q1, const quantity<T, D2, R2>& q2) noexcept 
+template <typename T, typename Tag, typename D1, typename D2, typename R1, typename R2>
+constexpr quantity<T, Tag, D1, R1> operator+(const quantity<T, Tag, D1, R1>& q1, const quantity<T, Tag, D2, R2>& q2) noexcept 
 {
-    return quantity<T, D1, R1>(q1.value() + q2.value() * R2::num * R1::den / R2::den / R1::num);
+    return quantity<T, Tag, D1, R1>(q1.value() + q2.value() * R2::num * R1::den / R2::den / R1::num);
 }
 
 // Subtract two quantities which have the same dimension but may have different ratios.
-template <typename T, typename D1, typename D2, typename R1, typename R2>
-constexpr quantity<T, D1, R1> operator-(const quantity<T, D1, R1>& q1, const quantity<T, D2, R2>& q2) noexcept 
+template <typename T, typename Tag, typename D1, typename D2, typename R1, typename R2>
+constexpr quantity<T, Tag, D1, R1> operator-(const quantity<T, Tag, D1, R1>& q1, const quantity<T, Tag, D2, R2>& q2) noexcept 
 {
-    return quantity<T, D1, R1>(q1.value() - q2.value() * R2::num * R1::den / R2::den / R1::num);
+    return quantity<T, Tag, D1, R1>(q1.value() - q2.value() * R2::num * R1::den / R2::den / R1::num);
 }
 
-template <typename T, typename D, typename R>
-constexpr quantity<T, D, R> operator-(const quantity<T, D, R>& q) noexcept 
+template <typename T, typename Tag, typename D, typename R>
+constexpr quantity<T, Tag, D, R> operator-(const quantity<T, Tag, D, R>& q) noexcept 
 {
-    return quantity<T, D, R>(-q.value());
+    return quantity<T, Tag, D, R>(-q.value());
 }
 
 
@@ -388,38 +406,38 @@ constexpr quantity<T, D, R> operator-(const quantity<T, D, R>& q) noexcept
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Relational operators
 
-template <typename T, typename D, typename R1, typename R2>
-constexpr bool operator==(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept
+template <typename T, typename Tag, typename D, typename R1, typename R2>
+constexpr bool operator==(const quantity<T, Tag, D, R1>& q1, const quantity<T, Tag, D, R2>& q2) noexcept
 {
     return (q1.value() * R1::num * R2::den) == (q2.value() * R2::num * R1::den);
 }
 
-template <typename T, typename D, typename R1, typename R2>
-constexpr bool operator!=(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept
+template <typename T, typename Tag, typename D, typename R1, typename R2>
+constexpr bool operator!=(const quantity<T, Tag, D, R1>& q1, const quantity<T, Tag, D, R2>& q2) noexcept
 {
     return (q1.value() * R1::num * R2::den) != (q2.value() * R2::num * R1::den);
 }
 
-template <typename T, typename D, typename R1, typename R2>
-constexpr bool operator<(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept
+template <typename T, typename Tag, typename D, typename R1, typename R2>
+constexpr bool operator<(const quantity<T, Tag, D, R1>& q1, const quantity<T, Tag, D, R2>& q2) noexcept
 {
     return (q1.value() * R1::num * R2::den) < (q2.value() * R2::num * R1::den);
 }
 
-template <typename T, typename D, typename R1, typename R2>
-constexpr bool operator<=(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept
+template <typename T, typename Tag, typename D, typename R1, typename R2>
+constexpr bool operator<=(const quantity<T, Tag, D, R1>& q1, const quantity<T, Tag, D, R2>& q2) noexcept
 {
     return (q1.value() * R1::num * R2::den) <= (q2.value() * R2::num * R1::den);
 }
 
-template <typename T, typename D, typename R1, typename R2>
-constexpr bool operator>(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+template <typename T, typename Tag, typename D, typename R1, typename R2>
+constexpr bool operator>(const quantity<T, Tag, D, R1>& q1, const quantity<T, Tag, D, R2>& q2) noexcept 
 {
     return (q1.value() * R1::num * R2::den) > (q2.value() * R2::num * R1::den);
 }
 
-template <typename T, typename D, typename R1, typename R2>
-constexpr bool operator>=(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+template <typename T, typename Tag, typename D, typename R1, typename R2>
+constexpr bool operator>=(const quantity<T, Tag, D, R1>& q1, const quantity<T, Tag, D, R2>& q2) noexcept 
 {
     return (q1.value() * R1::num * R2::den) >= (q2.value() * R2::num * R1::den);
 }
@@ -692,127 +710,171 @@ using meter_per_ss_d = si::dimension_divide<meter_per_s_d, second_d>;
 //constexpr name operator""_ ## suffix(long double value) noexcept { return name(value); } \
 //constexpr name operator""_ ## suffix(unsigned long long int value) noexcept { return name(value); }
 
+struct default_tag;
+
 // Mass units
-using kilogram_t = si::quantity<base_type, kilogram_d>;
+using kilogram_t = si::quantity<base_type, default_tag, kilogram_d>;
 constexpr kilogram_t operator""_kg(long double value) noexcept { return kilogram_t(value); }
 constexpr kilogram_t operator""_kg(unsigned long long int value) noexcept { return kilogram_t(value); }
 
-using gram_t = si::quantity<base_type, kilogram_d, std::milli>;
+using gram_t = si::quantity_scale<kilogram_t, std::milli>;
 constexpr gram_t operator""_g(long double value) noexcept { return gram_t(value); }
 constexpr gram_t operator""_g(unsigned long long int value) noexcept { return gram_t(value); }
 
-using pound_t = si::quantity<base_type, kilogram_d, si::make_ratio<454, 1000>>;
+using pound_t = si::quantity_scale<kilogram_t, si::make_ratio<454, 1000>>;
 constexpr pound_t operator""_lb(long double value) noexcept { return pound_t(value); }
 constexpr pound_t operator""_lb(unsigned long long int value) noexcept { return pound_t(value); }
 
 // Distance units
-using meter_t = si::quantity<base_type, meter_d>;
+using meter_t = si::quantity<base_type, default_tag, meter_d>;
 constexpr meter_t operator""_m(long double value) noexcept { return meter_t(value); }
 constexpr meter_t operator""_m(unsigned long long int value) noexcept { return meter_t(value); }
 
-using kilometer_t = si::quantity<base_type, meter_d, std::kilo>;
+using kilometer_t = si::quantity_scale<meter_t, std::kilo>;
 constexpr kilometer_t operator""_km(long double value) noexcept { return kilometer_t(value); }
 constexpr kilometer_t operator""_km(unsigned long long int value) noexcept { return kilometer_t(value); }
 
-using centimeter_t = si::quantity<base_type, meter_d, std::centi>;
+using centimeter_t = si::quantity_scale<meter_t, std::centi>;
 constexpr centimeter_t operator""_cm(long double value) noexcept { return centimeter_t(value); }
 constexpr centimeter_t operator""_cm(unsigned long long int value) noexcept { return centimeter_t(value); }
 
-using millimeter_t = si::quantity<base_type, meter_d, std::milli>;
+using millimeter_t = si::quantity_scale<meter_t, std::milli>;
 constexpr millimeter_t operator""_mm(long double value) noexcept { return millimeter_t(value); }
 constexpr millimeter_t operator""_mm(unsigned long long int value) noexcept { return millimeter_t(value); }
 
+
+using radius_t   = si::quantity<base_type, struct circle_tag, meter_d>;
+using diameter_t = si::quantity_scale<radius_t, std::ratio<1, 2>>;
+
+static_assert(radius_t{10} == diameter_t{20});
+// Fails because the tags are different.
+//static_assert(radius_t{10} == meter_t{10});
+
+
+
+
 // Time units
-using second_t = si::quantity<base_type, second_d>;
+using second_t = si::quantity<base_type, default_tag, second_d>;
 constexpr second_t operator""_s(long double value) noexcept { return second_t(value); }
 constexpr second_t operator""_s(unsigned long long int value) noexcept { return second_t(value); }
 
-using minute_t = si::quantity<base_type, second_d, si::make_ratio<60>>;
-using hour_t = si::quantity<base_type, second_d, si::make_ratio<3600>>;
-using day_t = si::quantity<base_type, second_d, si::make_ratio<86400>>;
+using minute_t = si::quantity_scale<second_t, si::make_ratio<60>>;
+using hour_t = si::quantity_scale<minute_t, si::make_ratio<60>>;
+using day_t = si::quantity_scale<hour_t, si::make_ratio<24>>;
 
-using millisecond_t = si::quantity<base_type, second_d, std::milli>;
+using millisecond_t = si::quantity<base_type, default_tag, second_d, std::milli>;
 constexpr millisecond_t operator""_ms(long double value) noexcept { return millisecond_t(value); }
 constexpr millisecond_t operator""_ms(unsigned long long int value) noexcept { return millisecond_t(value); }
 
-using microsecond_t = si::quantity<base_type, second_d, std::micro>;
+using microsecond_t = si::quantity<base_type, default_tag, second_d, std::micro>;
 constexpr microsecond_t operator""_us(long double value) noexcept { return microsecond_t(value); }
 constexpr microsecond_t operator""_us(unsigned long long int value) noexcept { return microsecond_t(value); }
 
 // Frequency units
-using hertz_t = si::quantity<base_type, hertz_d>;
+using hertz_t = si::quantity<base_type, default_tag, hertz_d>;
 constexpr hertz_t operator""_Hz(long double value) noexcept { return hertz_t(value); }
 constexpr hertz_t operator""_Hz(unsigned long long int value) noexcept { return hertz_t(value); }
 
-using megahertz_t = si::quantity<base_type, hertz_d, std::mega>;
+using megahertz_t = si::quantity_scale<hertz_t, std::mega>;
 constexpr megahertz_t operator""_MHz(long double value) noexcept { return megahertz_t(value); }
 constexpr megahertz_t operator""_MHz(unsigned long long int value) noexcept { return megahertz_t(value); }
 
 // Velocity units
-using meter_per_s_t = si::quantity<base_type, meter_per_s_d>;
+using meter_per_s_t = si::quantity_divide<meter_t, second_t>;
 constexpr meter_per_s_t operator""_mps(long double value) noexcept { return meter_per_s_t(value); }
 constexpr meter_per_s_t operator""_mps(unsigned long long int value) noexcept { return meter_per_s_t(value); }
 
 // Acceleration units
-using meter_per_ss_t = si::quantity<base_type, meter_per_ss_d>;
+using meter_per_ss_t = si::quantity_divide<meter_per_s_t, second_t>;
 constexpr meter_per_ss_t operator""_mpss(long double value) noexcept { return meter_per_ss_t(value); }
 constexpr meter_per_ss_t operator""_mpss(unsigned long long int value) noexcept { return meter_per_ss_t(value); }
 
 
 
-template <typename Q, typename QTag>
-class tagged_quantity 
-{ 
-public:
-    explicit constexpr tagged_quantity(const Q& value) noexcept : m_value{value} {}
-    constexpr Q value() const noexcept { return m_value; }
-private:    
-    Q m_value; 
-};
+// template <typename Q, typename QTag>
+// class tagged_quantity 
+// { 
+// public:
+//     explicit constexpr tagged_quantity(const Q& value) noexcept : m_value{value} {}
+//     constexpr Q value() const noexcept { return m_value; }
+// private:    
+//     Q m_value; 
+// };
 
 
-using radius_t = tagged_quantity<meter_t, struct radius_tag>;
-constexpr meter_t circle(radius_t r) { return r.value(); }
+// template <typename Q, typename QTag, typename R = std::ratio<1>>
+// class tagged_quantity
+// {
+// public:
+//     explicit constexpr tagged_quantity(const Q& quantity) noexcept : m_quantity{quantity} {}
+
+//     template <typename R2>
+//     explicit constexpr tagged_quantity(const tagged_quantity<Q, QTag, R2>& other) noexcept
+//     : m_quantity{other.quantity() * R2::num * R::den / R2::den / R::num} 
+//     {
+//     }
+
+//     constexpr Q quantity() const noexcept { return m_quantity; }
+
+//     template <typename R2>
+//     constexpr operator tagged_quantity<Q, QTag, R2>() const noexcept
+//     {
+//         using T2 = tagged_quantity<Q, QTag, R2>;
+//         return T2(m_quantity * R::num * R2::den / R::den / R2::num);
+//     }
+
+// private:
+//     Q m_quantity;    
+// };
+
+
+
+
+// using radius_t   = tagged_quantity<meter_t, struct radius_tag>;
+// using diameter_t = tagged_quantity<meter_t, struct radius_tag, std::ratio<2>>;
+// constexpr meter_t circle(radius_t r) { return r.quantity(); }
+
+// static_assert(diameter_t{2_km} == radius_t{4_km});
 
 void compile_time_tests()
 {
-    // Construct tagged type from a quantity.
-    constexpr radius_t r{23000_mm};
-    static_assert(circle(r) == 23_m);
+    // // Construct tagged type from a quantity.
+    // constexpr radius_t r{23000_mm};
+    // static_assert(circle(r) == 23_m);
 
-    // Explicit constructor makes this fail to compile - good.
-    constexpr meter_t r2{23};
-    //circle(r2);
+    // // Explicit constructor makes this fail to compile - good.
+    // constexpr meter_t r2{23};
+    // //circle(r2);
 
-    constexpr radius_t r3(r2);
-    circle(r3);
+    // constexpr radius_t r3(r2);
+    // circle(r3);
 
     // Lack of constructor makes this fail to compile - good. 
     //constexpr radius_t r4{231};
     //static_assert(circle(r4) == 231_m);
 
-    static_assert(si::abs(-123_m) == 123_m);
-    static_assert(si::abs(-123_m) != -123_m);
+    // static_assert(si::abs(-123_m) == 123_m);
+    // static_assert(si::abs(-123_m) != -123_m);
 
-    static_assert(std::abs(sin(3_m / 1_m).value() - std::sin(3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(cos(3_m / 1_m).value() - std::cos(3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(tan(3_m / 1_m).value() - std::tan(3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(asin(1_m / 3_m).value() - std::asin(1./3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(acos(1_m / 3_m).value() - std::acos(1./3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(atan(1_m / 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(atan2(1_m, 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(sin(3_m / 1_m).value() - std::sin(3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(cos(3_m / 1_m).value() - std::cos(3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(tan(3_m / 1_m).value() - std::tan(3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(asin(1_m / 3_m).value() - std::asin(1./3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(acos(1_m / 3_m).value() - std::acos(1./3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(atan(1_m / 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(atan2(1_m, 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
 
-    static_assert(std::abs(sinh(3_m / 1_m).value() - std::sinh(3)) < 2*std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(cosh(3_m / 1_m).value() - std::cosh(3)) < 3*std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(tanh(3_m / 1_m).value() - std::tanh(3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(asinh(1_m / 3_m).value() - std::asinh(1./3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(acosh(9_m / 3_m).value() - std::acosh(3)) < std::numeric_limits<base_type>::epsilon());
-    static_assert(std::abs(atanh(1_m / 3_m).value() - std::atanh(1./3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(sinh(3_m / 1_m).value() - std::sinh(3)) < 2*std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(cosh(3_m / 1_m).value() - std::cosh(3)) < 3*std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(tanh(3_m / 1_m).value() - std::tanh(3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(asinh(1_m / 3_m).value() - std::asinh(1./3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(acosh(9_m / 3_m).value() - std::acosh(3)) < std::numeric_limits<base_type>::epsilon());
+    // static_assert(std::abs(atanh(1_m / 3_m).value() - std::atanh(1./3)) < std::numeric_limits<base_type>::epsilon());
 
     meter_t m3{100};
-    m3 *= si::quantity<base_type, si::scalar_d>(3);
+    m3 *= si::quantity<base_type, default_tag, si::scalar_d>(3);
     assert(m3.value() == 300);
-    m3 /= si::quantity<base_type, si::scalar_d>(3);
+    m3 /= si::quantity<base_type, default_tag, si::scalar_d>(3);
     assert(m3.value() == 100);
 
     // Equivalence of construction methods.
@@ -858,10 +920,17 @@ void compile_time_tests()
     static_assert(100_cm != 1001_mm);
 
     // Conversion to bool
-    static_assert(meter_t{100} == true);
-    static_assert(meter_t{0} == false);
-    static_assert(false != meter_t{100});
-    static_assert(true != meter_t{0});
+    // Explicit
+    static_assert(bool(meter_t{100}) == true);
+    static_assert(bool(meter_t{0}) == false);
+    static_assert(false != bool(meter_t{100}));
+    static_assert(true != bool(meter_t{0}));
+    // Double NOT
+    static_assert(!!meter_t{100} == true);
+    static_assert(!!meter_t{0} == false);
+    static_assert(false != !!meter_t{100});
+    static_assert(true != !!meter_t{0});
+    // NOT
     static_assert(!meter_t{100} == false);
     static_assert(!meter_t{0} == true);
     static_assert(!100_m == false);
