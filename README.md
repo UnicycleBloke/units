@@ -1,5 +1,12 @@
 # ub-units - A simple-ish units library for C++17 
 
+# Inspiration
+
+I was inspired to write this **ub-units** by [Jonathan Boccara's blog on strong types for strong interfaces](https://www.fluentcpp.com/2016/12/08/strong-types-for-strong-interfaces/). I was particularly interested in applying this idea to embedded software. Along the way, I have have found a couple of alternative libraries which do similar things: one from [Nic Holthaus](https://github.com/nholthaus/units), and another from [Mateusz Pusz](https://github.com/mpusz/units). I have studied these in any detail but they seemed very large. The latter library appears to be a candidate for standardisation and includes all kinds of C++20 features that are beyond my understanding. 
+
+I am a relative beginner in template metaprogamming, and have sought to keep my code as simple as possible so that (a) I understand how it works and, (b) other beginners might understand how it works. I feel certain that there are many bells and whistles which I could add to improve the genericity, compiler errors, type constraints, and so on. I'd like to learn more about that stuff but the goal here was to create a library that is simple to use and which is entirely made up of compile time constraints so that the compiler can optimise all of it away to basic arithmetic operations on the underlying representation. 
+
+
 **ub-units** is a simple compile-time modern C++ library which provides dimensional analysis and automatic scaling of physical units. The intention is to support strong types in order to reduce errors in mathematical expressions and when passing arguments to functions. For example, consider the following two functions:
 
 ```c++
