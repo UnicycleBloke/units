@@ -1,6 +1,7 @@
 #include <type_traits>
 #include <ratio>
 #include <cassert>
+#include <cmath>
 
 
 namespace si {
@@ -8,8 +9,8 @@ namespace si {
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
-// Representation for powers of SI base units. The base units effective form the basis of 
-// a vector space for dimensions.
+// Representation for powers of SI base units. The base units effectively form the basis of 
+// a vector space (R7) for dimensions.
 template <int EXP> struct kilogram_u { static constexpr int exp = EXP; };
 template <int EXP> struct meter_u { static constexpr int exp = EXP; };
 template <int EXP> struct second_u { static constexpr int exp = EXP; };
@@ -24,44 +25,44 @@ template <int EXP> struct candela_u { static constexpr int exp = EXP; };
 // A dimension for a quantity is basically a point in the vector space of which the units 
 // form the basis. 
 template <
-typename KG_T = kilogram_u<0>, 
-typename M_T = meter_u<0>, 
-typename S_T = second_u<0>, 
-typename A_T = ampere_u<0>, 
-typename K_T = kelvin_u<0>, 
-typename MOL_T = mole_u<0>, 
-typename CD_T = candela_u<0>>
+    typename KG_T  = kilogram_u<0>, 
+    typename M_T   = meter_u<0>, 
+    typename S_T   = second_u<0>, 
+    typename A_T   = ampere_u<0>, 
+    typename K_T   = kelvin_u<0>, 
+    typename MOL_T = mole_u<0>, 
+    typename CD_T  = candela_u<0>>
 struct dimension
 {
     // There's probably a nicer way to do this. The idea is that a dimension is created 
     // only from the set of seven SI base unit types above. Templates being what they are,
     // alternative types could have been used so long as they had the correct interface.
     // Maybe this restriction is unnecessary, but we want to be sure that the types of 
-    // two dimensions in the space of SI units are the same.
-    static_assert(std::is_same<KG_T, kilogram_u<KG_T::exp>>::value);
-    static_assert(std::is_same<M_T, meter_u<M_T::exp>>::value);
-    static_assert(std::is_same<S_T, second_u<S_T::exp>>::value);
-    static_assert(std::is_same<A_T, ampere_u<A_T::exp>>::value);
-    static_assert(std::is_same<K_T, kelvin_u<K_T::exp>>::value);
-    static_assert(std::is_same<MOL_T, mole_u<MOL_T::exp>>::value);
-    static_assert(std::is_same<CD_T, candela_u<CD_T::exp>>::value);
+    // two dimensions for the same point in the space of SI units are the same.
+    static_assert(std::is_same_v<KG_T, kilogram_u<KG_T::exp>>);
+    static_assert(std::is_same_v<M_T, meter_u<M_T::exp>>);
+    static_assert(std::is_same_v<S_T, second_u<S_T::exp>>);
+    static_assert(std::is_same_v<A_T, ampere_u<A_T::exp>>);
+    static_assert(std::is_same_v<K_T, kelvin_u<K_T::exp>>);
+    static_assert(std::is_same_v<MOL_T, mole_u<MOL_T::exp>>);
+    static_assert(std::is_same_v<CD_T, candela_u<CD_T::exp>>);
 
     // Provide access to the exponents for each base unit.
-    using kg = KG_T;
-    using m = M_T;
-    using s = S_T;
-    using A = A_T;
-    using K = K_T;
+    using kg  = KG_T;
+    using m   = M_T;
+    using s   = S_T;
+    using A   = A_T;
+    using K   = K_T;
     using mol = MOL_T;
-    using cd = CD_T;
+    using cd  = CD_T;
 };
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
-// Multiplying or dividing dimensions adds or subtracts the base vectors.
+// Multiplying or dividing dimensions adds or subtracts the corresponding vectors.
 // Could possibly add powers and roots. Roots would appear to require
-// changing the base units to be rational rather than integral powers.
+// changing the base unit exponents to be rational rather than integral powers.
 // Then we could use rational powers, too...
 template <typename D1, typename D2>
 using dimension_multiply = dimension<
@@ -85,19 +86,21 @@ using dimension_divide = dimension<
 
 // template <typename D, int N>
 // using dimension_power = dimension<
-// kilogram_u<D::kg::exp * N>, 
-// meter_u<D::m::exp * N>, 
-// second_u<D::s::exp * N>,
-// ampere_u<D::A::exp * N>,
-// kelvin_u<D::K::exp * N>,
-// mole_u<D::mol::exp * N>,
-// candela_u<D::cd::exp * N>>;
+//     kilogram_u<D::kg::exp * N>, 
+//     meter_u<D::m::exp * N>, 
+//     second_u<D::s::exp * N>,
+//     ampere_u<D::A::exp * N>,
+//     kelvin_u<D::K::exp * N>,
+//     mole_u<D::mol::exp * N>,
+//     candela_u<D::cd::exp * N>>;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Type function to generate a single component of a dimension based on an argument 
 // from a type list. The argument represents a single SI base unit, to some power).
+namespace detail {
+
 template <typename U>
 struct get_dimension_impl;
 
@@ -167,9 +170,12 @@ struct make_dimension_impl<D, Ds...>
     using dim = dimension_multiply<get_dimension<D>, typename make_dimension_impl<Ds...>::dim>;
 };
 
+} // namespace detail {
+
+
 // Convenience function.
 template <typename... Ds>
-using make_dimension = typename make_dimension_impl<Ds...>::dim;
+using make_dimension = typename detail::make_dimension_impl<Ds...>::dim;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -192,42 +198,46 @@ using make_ratio = typename std::ratio<N, D>::type;
 // Represents a physical quantity with some particular dimension and ratio. It contains a 
 // single arithmetic data member, typically of a floating point type. A whole family of 
 // types with the same dimension can be created: e.g. m, km, mm, cm, ...
-template <typename T, typename Dim, typename Ratio = std::ratio<1>>
+template <typename T, typename D, typename R = std::ratio<1>>
 class quantity
 {
 public:
-    static_assert(std::is_arithmetic<T>::value);
-    static_assert(std::is_same<Ratio, make_ratio<Ratio::num, Ratio::den>>::value);
-    static_assert(std::is_same<Dim, dimension< 
-        kilogram_u<Dim::kg::exp>, meter_u<Dim::m::exp>, second_u<Dim::s::exp>,
-        ampere_u<Dim::A::exp>, kelvin_u<Dim::K::exp>, mole_u<Dim::mol::exp>,
-        candela_u<Dim::cd::exp>>>::value);
+    // Simple restriction to keep life easier. Could extend to user defined types that have 
+    // the relevant properties.
+    //static_assert(std::is_arithmetic_v<T>);
+    static_assert(std::is_floating_point_v<T>);
+    // Ensure that the ratio is reduced and makes sense.
+    static_assert(std::is_same_v<R, make_ratio<R::num, R::den>>);
+    static_assert(R::num * R::den > 0);
+    // Only si::dimension types are allowed.
+    static_assert(std::is_same_v<D, dimension< 
+        kilogram_u<D::kg::exp>, meter_u<D::m::exp>, second_u<D::s::exp>,
+        ampere_u<D::A::exp>, kelvin_u<D::K::exp>, mole_u<D::mol::exp>,
+        candela_u<D::cd::exp>>>);
 
-    using type = T;
-    using dim = Dim;
-    using ratio = Ratio;
+    using type  = T;
+    using dim   = D;
+    using ratio = R;
 
     explicit constexpr quantity(T value) noexcept : m_value{value} {}
+
+    template <typename R2>
+    explicit constexpr quantity(const quantity<T, D, R2>& other) noexcept
+    : m_value{other.value() * R2::num * R::den / R2::den / R::num} 
+    {
+    }
+
     constexpr T value() const noexcept { return m_value; }
 
-    // Copy constructions from quantities with different ratios. 
-    template <typename Ratio2>
-    explicit constexpr quantity(const quantity<T, Dim, Ratio2>& other) noexcept
-    : m_value{other.value() * Ratio2::num * Ratio::den / Ratio2::den / Ratio::num} 
-    {
-    }
-
     // Conversion to quantities with different ratios.
-    template <typename Ratio2>
-    constexpr operator quantity<T, Dim, Ratio2>() const noexcept
+    template <typename R2>
+    constexpr operator quantity<T, D, R2>() const noexcept
     {
-        using Q2 = quantity<T, Dim, Ratio2>;
-        return Q2(m_value * Ratio::num * Ratio2::den / Ratio::den / Ratio2::num);
+        using Q2 = quantity<T, D, R2>;
+        return Q2(m_value * R::num * R2::den / R::den / R2::num);
     }
 
-    // Non-explicit form leads to operator overload ambiguity - and errors - with the scalar 
-    // multiply and divide because the bool implicitly converts to int. Maybe just use !!.
-    explicit constexpr operator bool() const noexcept
+    constexpr operator bool() const noexcept
     {
         return m_value != 0;
     }
@@ -246,9 +256,10 @@ public:
         return *this;
     }
 
-    quantity& operator*=(quantity<T, dimension<>> scalar) noexcept 
+    template <typename R2>
+    quantity& operator*=(quantity<T, scalar_d, R2> scalar) noexcept 
     {
-        m_value *= scalar.value();
+        m_value *= (scalar.value() * R2::num / R2::den);
         return *this;
     }
 
@@ -261,25 +272,26 @@ public:
         return *this;
     }
 
-    quantity& operator/=(quantity<T, dimension<>> scalar) noexcept 
+    template <typename R2>
+    quantity& operator/=(quantity<T, scalar_d, R2> scalar) noexcept 
     {
-        m_value /= scalar.value();
+        m_value /= (scalar.value() * R2::num / R2::den);
         return *this;
     }
 
     // It only makes sense to add-assign with quantities having the same dimension.
-    template <typename Ratio2>
-    quantity& operator+=(const quantity<T, Dim, Ratio2>& q2) noexcept
+    template <typename R2>
+    quantity& operator+=(const quantity<T, D, R2>& q2) noexcept
     {
-        m_value += (q2.value() * Ratio2::num * Ratio::den / Ratio2::den / Ratio::num);
+        m_value += (q2.value() * R2::num * R::den / R2::den / R::num);
         return *this;
     }
 
     // It only makes sense to subtract-assign with quantities having the same dimension.
-    template <typename Ratio2>
-    quantity& operator-=(const quantity<T, Dim, Ratio2>& q2) noexcept
+    template <typename R2>
+    quantity& operator-=(const quantity<T, D, R2>& q2) noexcept
     {
-        m_value -= (q2.value() * Ratio2::num * Ratio::den / Ratio2::den / Ratio::num);
+        m_value -= (q2.value() * R2::num * R::den / R2::den / R::num);
         return *this;
     }
 
@@ -374,6 +386,8 @@ constexpr quantity<T, D, R> operator-(const quantity<T, D, R>& q) noexcept
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
+// Relational operators
+
 template <typename T, typename D, typename R1, typename R2>
 constexpr bool operator==(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept
 {
@@ -410,6 +424,240 @@ constexpr bool operator>=(const quantity<T, D, R1>& q1, const quantity<T, D, R2>
     return (q1.value() * R1::num * R2::den) >= (q2.value() * R2::num * R1::den);
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Common mathematical functions
+// These all basically pass through the underlying value to the matching function in cmath.
+
+// Basic operations 
+template <typename T, typename D, typename R>
+constexpr quantity<T, D, R> abs(const quantity<T, D, R>& q) noexcept
+{
+    return quantity<T, D, R>(std::abs(q.value()));
+}
+
+template <typename T, typename D, typename R>
+constexpr quantity<T, D, R> fmod(const quantity<T, D, R>& q) noexcept
+{
+    return quantity<T, D, R>(std::fmod(q.value()));
+}
+
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, D, R1> remainder(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+{
+    return quantity<T, D, R1>(std::remainder(q1.value(), q2.value() * R2::num * R1::den / R2::den / R1::num));
+}
+
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, D, R1> remquo(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2, int* quo) noexcept 
+{
+    return quantity<T, D, R1>(std::remquo(q1.value(), q2.value() * R2::num * R1::den / R2::den / R1::num, quo));
+}
+
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, D, R1> fmax(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+{
+    return quantity<T, D, R1>(std::fmax(q1.value(), q2.value() * R2::num * R1::den / R2::den / R1::num));
+}
+
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, D, R1> fmin(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+{
+    return quantity<T, D, R1>(std::fmin(q1.value(), q2.value() * R2::num * R1::den / R2::den / R1::num));
+}
+
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, D, R1> fdim(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+{
+    return quantity<T, D, R1>(std::fdim(q1.value(), q2.value() * R2::num * R1::den / R2::den / R1::num));
+}
+
+
+// Exponential functions - can take only scalar quantities, and the ratio is normalised.
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> exp(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::exp(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> exp2(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::exp2(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> expm1(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::expm1(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> log(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::log(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> log10(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::log10(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> log2(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::log2(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> log1p(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::log1p(q.value() * R::num / R::den));
+}
+
+
+// Power functions - TODO pow, sqrt and cbrt
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, D, R1> hypot(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+{
+    return quantity<T, D, R1>(std::hypot(q1.value(), q2.value() * R2::num * R1::den / R2::den / R1::num));
+}
+
+
+// Trigonometric functions - can take only scalar quantities, and the ratio is normalised.
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> sin(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::sin(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> cos(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::cos(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> tan(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::tan(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> asin(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::asin(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> acos(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::acos(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> atan(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::atan(q.value() * R::num / R::den));
+}
+
+template <typename T, typename D, typename R1, typename R2>
+constexpr quantity<T, scalar_d, std::ratio<1>> atan2(const quantity<T, D, R1>& q1, const quantity<T, D, R2>& q2) noexcept 
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::atan2(q1.value() * R1::num / R1::den, q2.value() * R2::num / R2::den));
+}
+
+
+// Hyperbolic functions - can take only scalar quantities, and the ratio is normalised.
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> sinh(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::sinh(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> cosh(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::cosh(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> tanh(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::tanh(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> asinh(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::asinh(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> acosh(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::acosh(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> atanh(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::atanh(q.value() * R::num / R::den));
+}
+
+
+//Error and gamma functions 
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> erf(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::erf(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> erfc(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::erfc(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> tgamma(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::tgamma(q.value() * R::num / R::den));
+}
+
+template <typename T, typename R>
+constexpr quantity<T, scalar_d, std::ratio<1>> lgamma(const quantity<T, scalar_d, R>& q) noexcept
+{
+    return quantity<T, scalar_d, std::ratio<1>>(std::lgamma(q.value() * R::num / R::den));
+}
+
+
+// Nearest integer floating point operations 
+template <typename T, typename D, typename R>
+constexpr quantity<T, D, R> ceil(const quantity<T, D, R>& q) noexcept 
+{
+    return quantity<T, D, R>(std::ceil(q.value()));
+}
+
+template <typename T, typename D, typename R>
+constexpr quantity<T, D, R> floor(const quantity<T, D, R>& q) noexcept 
+{
+    return quantity<T, D, R>(std::floor(q.value()));
+}
+
+template <typename T, typename D, typename R>
+constexpr quantity<T, D, R> trunc(const quantity<T, D, R>& q) noexcept 
+{
+    return quantity<T, D, R>(std::trunc(q.value()));
+}
+
+template <typename T, typename D, typename R>
+constexpr quantity<T, D, R> round(const quantity<T, D, R>& q) noexcept 
+{
+    return quantity<T, D, R>(std::round(q.value()));
+}
 
 } // namespace si {
 
@@ -513,29 +761,53 @@ constexpr meter_per_ss_t operator""_mpss(unsigned long long int value) noexcept 
 
 
 template <typename Q, typename QTag>
-struct tagged_quantity { Q value; };
-
-
-
+class tagged_quantity 
+{ 
+public:
+    explicit constexpr tagged_quantity(const Q& value) noexcept : m_value{value} {}
+    constexpr Q value() const noexcept { return m_value; }
+private:    
+    Q m_value; 
+};
 
 
 using radius_t = tagged_quantity<meter_t, struct radius_tag>;
-
-void circle(radius_t r)
-{
-
-}
+constexpr meter_t circle(radius_t r) { return r.value(); }
 
 void compile_time_tests()
 {
-    radius_t r {23_m};
-    circle(r);
+    // Construct tagged type from a quantity.
+    constexpr radius_t r{23000_mm};
+    static_assert(circle(r) == 23_m);
 
-    meter_t r2{23};
-    circle(r2);
+    // Explicit constructor makes this fail to compile - good.
+    constexpr meter_t r2{23};
+    //circle(r2);
 
-    radius_t r3{r2};
+    constexpr radius_t r3(r2);
     circle(r3);
+
+    // Lack of constructor makes this fail to compile - good. 
+    //constexpr radius_t r4{231};
+    //static_assert(circle(r4) == 231_m);
+
+    static_assert(si::abs(-123_m) == 123_m);
+    static_assert(si::abs(-123_m) != -123_m);
+
+    static_assert(std::abs(sin(3_m / 1_m).value() - std::sin(3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(cos(3_m / 1_m).value() - std::cos(3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(tan(3_m / 1_m).value() - std::tan(3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(asin(1_m / 3_m).value() - std::asin(1./3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(acos(1_m / 3_m).value() - std::acos(1./3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(atan(1_m / 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(atan2(1_m, 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
+
+    static_assert(std::abs(sinh(3_m / 1_m).value() - std::sinh(3)) < 2*std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(cosh(3_m / 1_m).value() - std::cosh(3)) < 3*std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(tanh(3_m / 1_m).value() - std::tanh(3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(asinh(1_m / 3_m).value() - std::asinh(1./3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(acosh(9_m / 3_m).value() - std::acosh(3)) < std::numeric_limits<base_type>::epsilon());
+    static_assert(std::abs(atanh(1_m / 3_m).value() - std::atanh(1./3)) < std::numeric_limits<base_type>::epsilon());
 
     meter_t m3{100};
     m3 *= si::quantity<base_type, si::scalar_d>(3);
@@ -586,10 +858,10 @@ void compile_time_tests()
     static_assert(100_cm != 1001_mm);
 
     // Conversion to bool
-    static_assert(bool(meter_t{100}) == true);
-    static_assert(bool(meter_t{0}) == false);
-    static_assert(false != bool(meter_t{100}));
-    static_assert(true != bool(meter_t{0}));
+    static_assert(meter_t{100} == true);
+    static_assert(meter_t{0} == false);
+    static_assert(false != meter_t{100});
+    static_assert(true != meter_t{0});
     static_assert(!meter_t{100} == false);
     static_assert(!meter_t{0} == true);
     static_assert(!100_m == false);
@@ -613,10 +885,10 @@ void compile_time_tests()
     // Multiplication and division, including with scalars 
     static_assert(12_mps == 48_m / 4_s);
     static_assert(12_mps * 4_s == 48_m);
-    static_assert(12_mps * 4 == 48_mps); // Ambiguous apparently
-    static_assert(4 * 12_mps == 48_mps); // Ambiguous apparently
-    static_assert(12_mps / 4 == 3_mps); // Ambiguous apparently
-    static_assert(12 / 4_s == 3_Hz); // Ambiguous apparently
+    static_assert(12_mps * 4 == 48_mps); 
+    static_assert(4 * 12_mps == 48_mps); 
+    static_assert(12_mps / 4 == 3_mps); 
+    static_assert(12 / 4_s == 3_Hz); 
 
     // Addition and subtraction
     static_assert(12_s + 3_ms == 12.003_s);
