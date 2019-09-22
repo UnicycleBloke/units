@@ -63,11 +63,43 @@ using weber_d        = si::dimension_multiply<volt_d, second_d>; // Wb
 using tesla_d        = si::dimension_divide<weber_d, meter_sq_d>; // T
 using henry_d        = si::dimension_divide<weber_d, ampere_d>; // H
 
-//#define CREATE_QUANTITY(name, dimension, suffix) \
-//using name = si::quantity<base_type, dimension>; \
-//constexpr name operator""_##suffix(long double value) noexcept { return name(value); } \
-//constexpr name operator""_##suffix(unsigned long long int value) noexcept { return name(value); }
 
+#define CREATE_QUANTITY(name, dimension, scale, suffix) \
+using name = si::quantity<base_type, dimension, scale>; 
+
+#define CREATE_SUFFIX(name, suffix) \
+constexpr name operator""_##suffix(long double value) noexcept { return name(value); } \
+constexpr name operator""_##suffix(unsigned long long int value) noexcept { return name(value); }
+
+#define CREATE_QUANTITY_AND_SUFFIX(name, dimension, scale, suffix) \
+CREATE_QUANTITY(name, dimension, scale, suffix) \
+CREATE_SUFFIX(name, suffix)
+
+// The kilogram is the base unit, but this messes with the standard scale 
+// factors milli, kilo, ... so we create the gram first.
+CREATE_QUANTITY_AND_SUFFIX(gram_t,      kilogram_d,  std::ratio<1>, g)   
+CREATE_QUANTITY_AND_SUFFIX(meter_t,     meter_d,     std::ratio<1>, m)   
+CREATE_QUANTITY_AND_SUFFIX(second_t,    second_d,    std::ratio<1>, s)   
+CREATE_QUANTITY_AND_SUFFIX(ampere_t,    ampere_d,    std::ratio<1>, A)   
+CREATE_QUANTITY_AND_SUFFIX(kelvin_t,    kelvin_d,    std::ratio<1>, K)   
+CREATE_QUANTITY_AND_SUFFIX(mole_t,      mole_d,      std::ratio<1>, mol)   
+CREATE_QUANTITY_AND_SUFFIX(candela_t,   candela_d,   std::ratio<1>, cd)   
+
+CREATE_QUANTITY_AND_SUFFIX(radian_t,    radian_d,    std::ratio<1>, rad)   
+CREATE_QUANTITY_AND_SUFFIX(steradian_t, steradian_d, std::ratio<1>, sr)   
+CREATE_QUANTITY_AND_SUFFIX(hertz_t,     hertz_d,     std::ratio<1>, Hz)   
+CREATE_QUANTITY_AND_SUFFIX(newton_t,    newton_d,    std::ratio<1>, N)   
+CREATE_QUANTITY_AND_SUFFIX(pascal_t,    pascal_d,    std::ratio<1>, Pa)   
+CREATE_QUANTITY_AND_SUFFIX(joule_t,     joule_d,     std::ratio<1>, J)   
+CREATE_QUANTITY_AND_SUFFIX(watt_t,      watt_d,      std::ratio<1>, W)   
+CREATE_QUANTITY_AND_SUFFIX(coulomb_t,   coulomb_d,   std::ratio<1>, C)   
+CREATE_QUANTITY_AND_SUFFIX(volt_t,      volt_d,      std::ratio<1>, V)   
+CREATE_QUANTITY_AND_SUFFIX(farad_t,     farad_d,     std::ratio<1>, F)   
+CREATE_QUANTITY_AND_SUFFIX(ohm_t,       ohm_d,       std::ratio<1>, Ohm)   
+CREATE_QUANTITY_AND_SUFFIX(siemens_t,   siemens_d,   std::ratio<1>, S)   
+CREATE_QUANTITY_AND_SUFFIX(weber_t,     weber_d,     std::ratio<1>, Wb)   
+CREATE_QUANTITY_AND_SUFFIX(tesla_t,     tesla_d,     std::ratio<1>, T)   
+CREATE_QUANTITY_AND_SUFFIX(henry_t,     henry_d,     std::ratio<1>, H)   
 
 // Just for testing really. Maybe not actually required at all.
 using scalar_t = si::quantity<base_type, si::scalar_d>;
@@ -78,74 +110,45 @@ constexpr scalar_t operator""_scalar(unsigned long long int value) noexcept { re
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Mass units
-// The kilogram is the base unit, but this messes with the standard scale factors milli, kilo, ...
-// so we create the gram first.
-using gram_t = si::quantity<base_type, kilogram_d>;
-constexpr gram_t operator""_g(long double value) noexcept { return gram_t(value); }
-constexpr gram_t operator""_g(unsigned long long int value) noexcept { return gram_t(value); }
-
 using milligram_t = si::milli<gram_t>;
-constexpr milligram_t operator""_mg(long double value) noexcept { return milligram_t(value); }
-constexpr milligram_t operator""_mg(unsigned long long int value) noexcept { return milligram_t(value); }
+CREATE_SUFFIX(milligram_t, mg)
 
 using kilogram_t = si::kilo<gram_t>;
-constexpr kilogram_t operator""_kg(long double value) noexcept { return kilogram_t(value); }
-constexpr kilogram_t operator""_kg(unsigned long long int value) noexcept { return kilogram_t(value); }
+CREATE_SUFFIX(kilogram_t, kg)
 
 using pound_t = si::quantity_scale<gram_t, si::make_ratio<454>>;
-constexpr pound_t operator""_lb(long double value) noexcept { return pound_t(value); }
-constexpr pound_t operator""_lb(unsigned long long int value) noexcept { return pound_t(value); }
+CREATE_SUFFIX(pound_t, lb)
 
 // Distance units
-using meter_t = si::quantity<base_type, meter_d>;
-constexpr meter_t operator""_m(long double value) noexcept { return meter_t(value); }
-constexpr meter_t operator""_m(unsigned long long int value) noexcept { return meter_t(value); }
-
 using kilometer_t = si::kilo<meter_t>;
-constexpr kilometer_t operator""_km(long double value) noexcept { return kilometer_t(value); }
-constexpr kilometer_t operator""_km(unsigned long long int value) noexcept { return kilometer_t(value); }
+CREATE_SUFFIX(kilometer_t, km)
 
 using centimeter_t = si::centi<meter_t>;
-constexpr centimeter_t operator""_cm(long double value) noexcept { return centimeter_t(value); }
-constexpr centimeter_t operator""_cm(unsigned long long int value) noexcept { return centimeter_t(value); }
+CREATE_SUFFIX(centimeter_t, cm)
 
 using millimeter_t = si::milli<meter_t>;
-constexpr millimeter_t operator""_mm(long double value) noexcept { return millimeter_t(value); }
-constexpr millimeter_t operator""_mm(unsigned long long int value) noexcept { return millimeter_t(value); }
+CREATE_SUFFIX(millimeter_t, mm)
 
 // Time units
-using second_t = si::quantity<base_type, second_d>;
-constexpr second_t operator""_s(long double value) noexcept { return second_t(value); }
-constexpr second_t operator""_s(unsigned long long int value) noexcept { return second_t(value); }
-
 using minute_t = si::quantity_scale<second_t, si::make_ratio<60>>;
 using hour_t   = si::quantity_scale<minute_t, si::make_ratio<60>>;
 using day_t    = si::quantity_scale<hour_t,   si::make_ratio<24>>;
 
 using millisecond_t = si::milli<second_t>;
-constexpr millisecond_t operator""_ms(long double value) noexcept { return millisecond_t(value); }
-constexpr millisecond_t operator""_ms(unsigned long long int value) noexcept { return millisecond_t(value); }
+CREATE_SUFFIX(millisecond_t, ms)
 
 using microsecond_t = si::micro<second_t>;
-constexpr microsecond_t operator""_us(long double value) noexcept { return microsecond_t(value); }
-constexpr microsecond_t operator""_us(unsigned long long int value) noexcept { return microsecond_t(value); }
+CREATE_SUFFIX(microsecond_t, us)
 
 // Frequency units
-using hertz_t = si::quantity<base_type, hertz_d>;
-constexpr hertz_t operator""_Hz(long double value) noexcept { return hertz_t(value); }
-constexpr hertz_t operator""_Hz(unsigned long long int value) noexcept { return hertz_t(value); }
-
 using megahertz_t = si::mega<hertz_t>;
-constexpr megahertz_t operator""_MHz(long double value) noexcept { return megahertz_t(value); }
-constexpr megahertz_t operator""_MHz(unsigned long long int value) noexcept { return megahertz_t(value); }
+CREATE_SUFFIX(megahertz_t, MHz)
 
 // Velocity units
 using meter_per_s_t = si::quantity_divide<meter_t, second_t>;
-constexpr meter_per_s_t operator""_mps(long double value) noexcept { return meter_per_s_t(value); }
-constexpr meter_per_s_t operator""_mps(unsigned long long int value) noexcept { return meter_per_s_t(value); }
+CREATE_SUFFIX(meter_per_s_t, mps)
 
 // Acceleration units
 using meter_per_ss_t = si::quantity_divide<meter_per_s_t, second_t>;
-constexpr meter_per_ss_t operator""_mpss(long double value) noexcept { return meter_per_ss_t(value); }
-constexpr meter_per_ss_t operator""_mpss(unsigned long long int value) noexcept { return meter_per_ss_t(value); }
+CREATE_SUFFIX(meter_per_ss_t, mpss)
 
