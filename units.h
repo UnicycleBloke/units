@@ -56,23 +56,17 @@ template <
     typename A_T   = ampere_u<0>, 
     typename K_T   = kelvin_u<0>, 
     typename MOL_T = mole_u<0>, 
-    typename CD_T  = candela_u<0>>
+    typename CD_T  = candela_u<0>,
+    typename = std::enable_if_t<
+        std::is_same_v<KG_T, kilogram_u<KG_T::exp>> &&
+        std::is_same_v<M_T, meter_u<M_T::exp>>      &&
+        std::is_same_v<S_T, second_u<S_T::exp>>     &&
+        std::is_same_v<A_T, ampere_u<A_T::exp>>     &&
+        std::is_same_v<K_T, kelvin_u<K_T::exp>>     &&
+        std::is_same_v<MOL_T, mole_u<MOL_T::exp>>   &&
+        std::is_same_v<CD_T, candela_u<CD_T::exp>>, int>>
 struct dimension
 {
-    // There's probably a nicer way to do this. The idea is that a dimension is created 
-    // only from the set of seven SI base unit types above. Templates being what they are,
-    // alternative types could have been used so long as they had the correct interface.
-    // Maybe this restriction is unnecessary, but we want to be sure that the types of 
-    // two dimensions for the same point in the space of SI units are the same.
-    static_assert(std::is_same_v<KG_T, kilogram_u<KG_T::exp>>);
-    static_assert(std::is_same_v<M_T, meter_u<M_T::exp>>);
-    static_assert(std::is_same_v<S_T, second_u<S_T::exp>>);
-    static_assert(std::is_same_v<A_T, ampere_u<A_T::exp>>);
-    static_assert(std::is_same_v<K_T, kelvin_u<K_T::exp>>);
-    static_assert(std::is_same_v<MOL_T, mole_u<MOL_T::exp>>);
-    static_assert(std::is_same_v<CD_T, candela_u<CD_T::exp>>);
-
-    // Provide access to the exponents for each base unit.
     using kg  = KG_T;
     using m   = M_T;
     using s   = S_T;
@@ -124,50 +118,50 @@ namespace detail {
 // Type function to generate a single component of a dimension based on an argument 
 // from a type list. The argument represents a single SI base unit, to some power).
 template <typename U>
-struct get_dimension_impl;
+struct make_component_impl;
 
 // Convenience function.
 template <typename U>
-using get_dimension = typename get_dimension_impl<U>::dim;
+using make_component = typename make_component_impl<U>::dim;
 
 template <int N>
-struct get_dimension_impl<kilogram_u<N>>
+struct make_component_impl<kilogram_u<N>>
 {
     using dim = dimension<kilogram_u<N>>;
 };
 
 template <int N>
-struct get_dimension_impl<meter_u<N>>
+struct make_component_impl<meter_u<N>>
 {
     using dim = dimension<kilogram_u<0>, meter_u<N>>;
 };
 
 template <int N>
-struct get_dimension_impl<second_u<N>>
+struct make_component_impl<second_u<N>>
 {
     using dim = dimension<kilogram_u<0>, meter_u<0>, second_u<N>>;
 };
 
 template <int N>
-struct get_dimension_impl<ampere_u<N>>
+struct make_component_impl<ampere_u<N>>
 {
     using dim = dimension<kilogram_u<0>, meter_u<0>, second_u<0>, ampere_u<N>>;
 };
 
 template <int N>
-struct get_dimension_impl<kelvin_u<N>>
+struct make_component_impl<kelvin_u<N>>
 {
     using dim = dimension<kilogram_u<0>, meter_u<0>, second_u<0>, ampere_u<0>, kelvin_u<N>>;
 };
 
 template <int N>
-struct get_dimension_impl<mole_u<N>>
+struct make_component_impl<mole_u<N>>
 {
     using dim = dimension<kilogram_u<0>, meter_u<0>, second_u<0>, ampere_u<0>, kelvin_u<0>, mole_u<N>>;
 };
 
 template <int N>
-struct get_dimension_impl<candela_u<N>>
+struct make_component_impl<candela_u<N>>
 {
     using dim = dimension<kilogram_u<0>, meter_u<0>, second_u<0>, ampere_u<0>, kelvin_u<0>, mole_u<0>, candela_u<N>>;
 };
@@ -189,7 +183,7 @@ template <typename D, typename... Ds>
 struct make_dimension_impl<D, Ds...>
 {
     // Recursively combine the base units. This is all compile time magic. 
-    using dim = dimension_multiply<get_dimension<D>, typename make_dimension_impl<Ds...>::dim>;
+    using dim = dimension_multiply<make_component<D>, typename make_dimension_impl<Ds...>::dim>;
 };
 
 
@@ -214,23 +208,35 @@ using make_ratio = typename std::ratio<N, D>::type;
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Represents a physical quantity with some particular dimension and ratio. It contains a 
 // single arithmetic data member, typically of a floating point type. A whole family of 
-// types with the same dimension can be created: e.g. m, km, mm, cm, ...
-template <typename T, typename D, typename R = std::ratio<1>, typename Tag = void>
+// types with the same dimension can be created: e.g. m, km, mm, cm, ... The optional Tag 
+// is used to create parallel quantities with an additional property such as, for 
+// example, their being all related to the diameter of a circle. 
+template <typename T, typename D, typename R = std::ratio<1>, typename Tag = void,
+    typename = std::enable_if_t<
+        std::is_floating_point_v<T>                   &&
+        std::is_same_v<R, make_ratio<R::num, R::den>> &&
+        (R::num * R::den > 0)                         &&
+        std::is_same_v<D, dimension< 
+            kilogram_u<D::kg::exp>, meter_u<D::m::exp>, second_u<D::s::exp>,
+            ampere_u<D::A::exp>, kelvin_u<D::K::exp>, mole_u<D::mol::exp>,
+            candela_u<D::cd::exp>>>, int>>
 class quantity
 {
 public:
     // Simple restriction to keep life easier. Could extend to user defined types that have 
     // the relevant properties. Would be nice to extend to integers and complex values, if 
     // nothing else. 
-    static_assert(std::is_floating_point_v<T>);
-    // Ensure that the ratio is reduced and makes sense.
-    static_assert(std::is_same_v<R, make_ratio<R::num, R::den>>);
-    static_assert(R::num * R::den > 0);
-    // Only si::dimension types are allowed.
-    static_assert(std::is_same_v<D, dimension< 
-        kilogram_u<D::kg::exp>, meter_u<D::m::exp>, second_u<D::s::exp>,
-        ampere_u<D::A::exp>, kelvin_u<D::K::exp>, mole_u<D::mol::exp>,
-        candela_u<D::cd::exp>>>);
+    // static_assert(std::is_floating_point_v<T>);
+
+    // // Ensure that the ratio is reduced and makes sense.
+    // static_assert(std::is_same_v<R, make_ratio<R::num, R::den>>);
+    // static_assert(R::num * R::den > 0);
+
+    // // Only si::dimension types are allowed.
+    // static_assert(std::is_same_v<D, dimension< 
+    //     kilogram_u<D::kg::exp>, meter_u<D::m::exp>, second_u<D::s::exp>,
+    //     ampere_u<D::A::exp>, kelvin_u<D::K::exp>, mole_u<D::mol::exp>,
+    //     candela_u<D::cd::exp>>>);
 
     using type  = T;
     using dim   = D;
@@ -248,6 +254,14 @@ public:
     // Note that this ignores the ratio. The result is 1.23 for 1.23_kg and 1.23_mg.
     constexpr T value() const noexcept { return m_value; }
     constexpr T scaled_value() const noexcept { return m_value * R::num / R::den; }
+
+    // Conversion to quantities with different tags, e.g. converting a radius to a plain length.
+    template <typename Tag2>
+    constexpr quantity<T, D, R, Tag2> convert_tag() const noexcept
+    {
+        using Q2 = quantity<T, D, R, Tag2>;
+        return Q2(m_value);
+    }
 
     // Conversion to quantities with different ratios.
     template <typename R2>
@@ -273,7 +287,6 @@ public:
     template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
     quantity& operator*=(U scalar) noexcept 
     {
-        //static_assert(std::is_arithmetic<U>::value);
         m_value *= scalar;
         return *this;
     }
@@ -289,7 +302,6 @@ public:
     template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
     quantity& operator/=(U scalar) noexcept 
     {
-        //static_assert(std::is_arithmetic<U>::value);
         m_value /= scalar;
         return *this;
     }
@@ -336,28 +348,6 @@ using quantity_multiply = decltype(std::declval<Q1>() * std::declval<Q2>());
 template <typename Q1, typename Q2>
 using quantity_divide = decltype(std::declval<Q1>() / std::declval<Q2>());
 
-// yotta, zetta, zepto and yocto are only supported on some platforms.
-//template <typename Q> using yotta = quantity_scale<Q, std::yotta>;
-//template <typename Q> using zetta = quantity_scale<Q, std::zetta>;
-template <typename Q> using exa   = quantity_scale<Q, std::exa>;
-template <typename Q> using peta  = quantity_scale<Q, std::peta>;
-template <typename Q> using tera  = quantity_scale<Q, std::tera>;
-template <typename Q> using giga  = quantity_scale<Q, std::giga>;
-template <typename Q> using mega  = quantity_scale<Q, std::mega>;
-template <typename Q> using kilo  = quantity_scale<Q, std::kilo>;
-template <typename Q> using hecto = quantity_scale<Q, std::hecto>;
-template <typename Q> using deca  = quantity_scale<Q, std::deca>;
-template <typename Q> using deci  = quantity_scale<Q, std::deci>;
-template <typename Q> using centi = quantity_scale<Q, std::centi>;
-template <typename Q> using milli = quantity_scale<Q, std::milli>;
-template <typename Q> using micro = quantity_scale<Q, std::micro>;
-template <typename Q> using nano  = quantity_scale<Q, std::nano>;
-template <typename Q> using pico  = quantity_scale<Q, std::pico>;
-template <typename Q> using femto = quantity_scale<Q, std::femto>;
-template <typename Q> using atto  = quantity_scale<Q, std::atto>;
-//template <typename Q> using zepto = quantity_scale<Q, std::zepto>;
-//template <typename Q> using yocto = quantity_scale<Q, std::yocto>;
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -376,7 +366,6 @@ constexpr auto operator*(const quantity<T, D1, R1, Tag>& q1, const quantity<T, D
 template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr quantity<T, D, R, Tag> operator*(const quantity<T, D, R, Tag>& q, U scalar) noexcept 
 {
-    static_assert(std::is_arithmetic<U>::value);
     return quantity<T, D, R, Tag>(q.value() * scalar);
 }
 
@@ -384,7 +373,6 @@ constexpr quantity<T, D, R, Tag> operator*(const quantity<T, D, R, Tag>& q, U sc
 template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr quantity<T, D, R, Tag> operator*(U scalar, const quantity<T, D, R, Tag>& q) noexcept 
 {
-    static_assert(std::is_arithmetic<U>::value);
     return quantity<T, D, R, Tag>(q.value() * scalar);
 }
 
@@ -404,7 +392,6 @@ constexpr auto operator/(const quantity<T, D1, R1, Tag>& q1, const quantity<T, D
 template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr quantity<T, D, R, Tag> operator/(const quantity<T, D, R, Tag>& q, U scalar) noexcept 
 {
-    static_assert(std::is_arithmetic<U>::value);
     return quantity<T, D, R, Tag>(q.value() / scalar);
 }
 
@@ -414,7 +401,6 @@ constexpr auto operator/(U scalar, const quantity<T, D, R, Tag>& q) noexcept
     -> quantity<T, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>, Tag>
 {
     // The dimension and the ratio need to be inverted in this case.
-    static_assert(std::is_arithmetic<U>::value);
     using Q = quantity<T, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>, Tag>;
     return Q(scalar / q.value());
 }
@@ -716,6 +702,32 @@ constexpr quantity<T, D, R, Tag> round(const quantity<T, D, R, Tag>& q) noexcept
 {
     return quantity<T, D, R, Tag>(std::round(q.value()));
 }
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Standard multipliers used in SI units.
+// yotta, zetta, zepto and yocto are only supported on some platforms.
+//template <typename Q> using yotta = quantity_scale<Q, std::yotta>;
+//template <typename Q> using zetta = quantity_scale<Q, std::zetta>;
+template <typename Q> using exa   = quantity_scale<Q, std::exa>;
+template <typename Q> using peta  = quantity_scale<Q, std::peta>;
+template <typename Q> using tera  = quantity_scale<Q, std::tera>;
+template <typename Q> using giga  = quantity_scale<Q, std::giga>;
+template <typename Q> using mega  = quantity_scale<Q, std::mega>;
+template <typename Q> using kilo  = quantity_scale<Q, std::kilo>;
+template <typename Q> using hecto = quantity_scale<Q, std::hecto>;
+template <typename Q> using deca  = quantity_scale<Q, std::deca>;
+template <typename Q> using deci  = quantity_scale<Q, std::deci>;
+template <typename Q> using centi = quantity_scale<Q, std::centi>;
+template <typename Q> using milli = quantity_scale<Q, std::milli>;
+template <typename Q> using micro = quantity_scale<Q, std::micro>;
+template <typename Q> using nano  = quantity_scale<Q, std::nano>;
+template <typename Q> using pico  = quantity_scale<Q, std::pico>;
+template <typename Q> using femto = quantity_scale<Q, std::femto>;
+template <typename Q> using atto  = quantity_scale<Q, std::atto>;
+//template <typename Q> using zepto = quantity_scale<Q, std::zepto>;
+//template <typename Q> using yocto = quantity_scale<Q, std::yocto>;
 
 
 } // namespace si {

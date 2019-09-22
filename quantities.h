@@ -47,26 +47,32 @@ using meter_sq_d     = si::make_dimension<si::meter_u<2>>;
 using meter_per_s_d  = si::dimension_divide<meter_d, second_d>;
 using meter_per_ss_d = si::dimension_divide<meter_per_s_d, second_d>;
 
-using radian_d    = si::scalar_d; // rad
-using steradian_d = si::scalar_d; // sr
-using hertz_d     = si::make_dimension<si::second_u<-1>>; // Hz
-using newton_d    = si::make_dimension<si::kilogram_u<1>, si::meter_u<1>, si::second_u<-2>>; // N
-using pascal_d    = si::make_dimension<si::kilogram_u<1>, si::meter_u<-1>, si::second_u<-2>>; // Pa
-using joule_d     = si::dimension_multiply<newton_d, meter_d>; // J
-using watt_d      = si::dimension_divide<joule_d, second_d>; // W
-using coulomb_d   = si::make_dimension<si::ampere_u<1>, si::second_u<1>>; // C
-using volt_d      = si::dimension_divide<joule_d, coulomb_d>; // V
-using farad_d     = si::dimension_divide<coulomb_d, volt_d>; // F
-using ohm_d       = si::dimension_divide<volt_d, ampere_d>; // Ohm
-using siemens_d   = si::dimension_divide<ampere_d, volt_d>; // S
-using weber_d     = si::dimension_multiply<volt_d, second_d>; // Wb
-using tesla_d     = si::dimension_divide<weber_d, meter_sq_d>; // T
-using henry_d     = si::dimension_divide<weber_d, ampere_d>; // H
+using radian_d       = si::scalar_d; // rad
+using steradian_d    = si::scalar_d; // sr
+using hertz_d        = si::make_dimension<si::second_u<-1>>; // Hz
+using newton_d       = si::make_dimension<si::kilogram_u<1>, si::meter_u<1>, si::second_u<-2>>; // N
+using pascal_d       = si::make_dimension<si::kilogram_u<1>, si::meter_u<-1>, si::second_u<-2>>; // Pa
+using joule_d        = si::dimension_multiply<newton_d, meter_d>; // J
+using watt_d         = si::dimension_divide<joule_d, second_d>; // W
+using coulomb_d      = si::make_dimension<si::ampere_u<1>, si::second_u<1>>; // C
+using volt_d         = si::dimension_divide<joule_d, coulomb_d>; // V
+using farad_d        = si::dimension_divide<coulomb_d, volt_d>; // F
+using ohm_d          = si::dimension_divide<volt_d, ampere_d>; // Ohm
+using siemens_d      = si::dimension_divide<ampere_d, volt_d>; // S
+using weber_d        = si::dimension_multiply<volt_d, second_d>; // Wb
+using tesla_d        = si::dimension_divide<weber_d, meter_sq_d>; // T
+using henry_d        = si::dimension_divide<weber_d, ampere_d>; // H
 
 //#define CREATE_QUANTITY(name, dimension, suffix) \
 //using name = si::quantity<base_type, dimension>; \
 //constexpr name operator""_##suffix(long double value) noexcept { return name(value); } \
 //constexpr name operator""_##suffix(unsigned long long int value) noexcept { return name(value); }
+
+
+// Just for testing really. Maybe not actually required at all.
+using scalar_t = si::quantity<base_type, si::scalar_d>;
+constexpr scalar_t operator""_scalar(long double value) noexcept { return scalar_t(value); }
+constexpr scalar_t operator""_scalar(unsigned long long int value) noexcept { return scalar_t(value); }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,14 +112,6 @@ constexpr centimeter_t operator""_cm(unsigned long long int value) noexcept { re
 using millimeter_t = si::milli<meter_t>;
 constexpr millimeter_t operator""_mm(long double value) noexcept { return millimeter_t(value); }
 constexpr millimeter_t operator""_mm(unsigned long long int value) noexcept { return millimeter_t(value); }
-
-
-using diameter_t = si::quantity<base_type, meter_d, std::ratio<1>, struct circle_tag>;
-using radius_t   = si::quantity_scale<diameter_t, std::ratio<2>>;
-
-static_assert(radius_t{10} == diameter_t{20});
-// Fails because the tags are different.
-//static_assert(radius_t{10} == meter_t{10});
 
 // Time units
 using second_t = si::quantity<base_type, second_d>;

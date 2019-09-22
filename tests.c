@@ -121,7 +121,7 @@ static_assert(3_ms - 1_s == -997_ms);
 
 // Make sure that dividing like quantities creates a scalar, but no of the underlying representation.
 // We rely on this for some of the tests.
-static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m / 1_m)::dim>, si::scalar_d>);
+static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m / 1_m)>, scalar_t>);
 static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m *= 1)>, decltype(1_m)>);
 static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m /= 1)>, decltype(1_m)>);
 static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m += 1_m)>, decltype(1_m)>);
@@ -209,15 +209,6 @@ static_assert(has_mul(1_m, 1_m) == true);
 static_assert(has_mul(1_m, 1_s) == true);
 static_assert(has_mul(1_m, 1) == true);
 static_assert(has_mul(1, 1_m) == true);
-
-template <typename T, typename = decltype(si::exp(std::declval<T>()))>
-constexpr bool has_exp(T)   { return true; }
-constexpr bool has_exp(...) { return false; }
-
-static_assert(!has_exp(1_m));
-static_assert(has_exp(1_m / 1_m));
-
-
 
 // abs(const quantity<T, D, R, Tag>& q) noexcept
 static_assert(si::abs(-123_m) == 123_m);
@@ -309,17 +300,14 @@ static_assert(si::round(-123.1_m) == -123_m);
 static_assert(si::round(123.9_m) == 124_m);
 static_assert(si::round(-123.9_m) == -124_m);
 
+// Tagged quantities
+using diameter_t = si::quantity<base_type, meter_d, std::ratio<1>, struct circle_tag>;
+using radius_t   = si::quantity_scale<diameter_t, std::ratio<2>>;
 
-base_type test_double(base_type m, base_type s)
-{ 
-    return m * m * m / s; 
-}
-
-
-auto test_units(meter_t m, second_t s)
-{
-    return m * m * m / s;
-}
+static_assert(radius_t{10} == diameter_t{20});
+static_assert(has_add(radius_t{1}, diameter_t{1}) == true);
+static_assert(has_add(radius_t{1}, meter_t{1}) == false);
+static_assert(has_add(radius_t{1}.convert_tag<void>(), meter_t{1}) == true);
 
 
 int main()
@@ -331,4 +319,10 @@ int main()
     auto sub = 12_m;
     assert((sub -= 3_m) == 9_m);
     assert((sub -= 3_cm) == 8.97_m);
+
+    auto div = 12_m;
+    assert((div /= 3) == 4_m);
+
+    auto mul = 12_m;
+    assert((mul *= 3) == 36_m);
 }
