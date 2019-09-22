@@ -38,9 +38,35 @@ using base_type = float;
 using kilogram_d     = si::make_dimension<si::kilogram_u<1>>;
 using meter_d        = si::make_dimension<si::meter_u<1>>;
 using second_d       = si::make_dimension<si::second_u<1>>;
-using hertz_d        = si::make_dimension<si::second_u<-1>>;
+using ampere_d       = si::make_dimension<si::ampere_u<1>>;
+using kelvin_d       = si::make_dimension<si::kelvin_u<1>>;
+using mole_d         = si::make_dimension<si::mole_u<1>>;
+using candela_d      = si::make_dimension<si::candela_u<1>>;
+
+using meter_sq_d     = si::make_dimension<si::meter_u<2>>;
 using meter_per_s_d  = si::dimension_divide<meter_d, second_d>;
 using meter_per_ss_d = si::dimension_divide<meter_per_s_d, second_d>;
+
+using radian_d    = si::scalar_d; // rad
+using steradian_d = si::scalar_d; // sr
+using hertz_d     = si::make_dimension<si::second_u<-1>>; // Hz
+using newton_d    = si::make_dimension<si::kilogram_u<1>, si::meter_u<1>, si::second_u<-2>>; // N
+using pascal_d    = si::make_dimension<si::kilogram_u<1>, si::meter_u<-1>, si::second_u<-2>>; // Pa
+using joule_d     = si::dimension_multiply<newton_d, meter_d>; // J
+using watt_d      = si::dimension_divide<joule_d, second_d>; // W
+using coulomb_d   = si::make_dimension<si::ampere_u<1>, si::second_u<1>>; // C
+using volt_d      = si::dimension_divide<joule_d, coulomb_d>; // V
+using farad_d     = si::dimension_divide<coulomb_d, volt_d>; // F
+using ohm_d       = si::dimension_divide<volt_d, ampere_d>; // Ohm
+using siemens_d   = si::dimension_divide<ampere_d, volt_d>; // S
+using weber_d     = si::dimension_multiply<volt_d, second_d>; // Wb
+using tesla_d     = si::dimension_divide<weber_d, meter_sq_d>; // T
+using henry_d     = si::dimension_divide<weber_d, ampere_d>; // H
+
+//#define CREATE_QUANTITY(name, dimension, suffix) \
+//using name = si::quantity<base_type, dimension>; \
+//constexpr name operator""_##suffix(long double value) noexcept { return name(value); } \
+//constexpr name operator""_##suffix(unsigned long long int value) noexcept { return name(value); }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +78,6 @@ using gram_t = si::quantity<base_type, kilogram_d>;
 constexpr gram_t operator""_g(long double value) noexcept { return gram_t(value); }
 constexpr gram_t operator""_g(unsigned long long int value) noexcept { return gram_t(value); }
 
-//using milligram_t = si::quantity_scale<gram_t, std::milli>;
 using milligram_t = si::milli<gram_t>;
 constexpr milligram_t operator""_mg(long double value) noexcept { return milligram_t(value); }
 constexpr milligram_t operator""_mg(unsigned long long int value) noexcept { return milligram_t(value); }
@@ -64,9 +89,6 @@ constexpr kilogram_t operator""_kg(unsigned long long int value) noexcept { retu
 using pound_t = si::quantity_scale<gram_t, si::make_ratio<454>>;
 constexpr pound_t operator""_lb(long double value) noexcept { return pound_t(value); }
 constexpr pound_t operator""_lb(unsigned long long int value) noexcept { return pound_t(value); }
-
-static_assert(1_kg == 1000_g);
-static_assert(1_lb == 454_g);
 
 // Distance units
 using meter_t = si::quantity<base_type, meter_d>;

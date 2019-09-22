@@ -247,6 +247,7 @@ public:
 
     // Note that this ignores the ratio. The result is 1.23 for 1.23_kg and 1.23_mg.
     constexpr T value() const noexcept { return m_value; }
+    constexpr T scaled_value() const noexcept { return m_value * R::num / R::den; }
 
     // Conversion to quantities with different ratios.
     template <typename R2>
@@ -269,10 +270,10 @@ public:
     }
 
     // It only makes sense to multiply-assign with a scalar. 
-    template <typename U>
+    template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
     quantity& operator*=(U scalar) noexcept 
     {
-        static_assert(std::is_arithmetic<U>::value);
+        //static_assert(std::is_arithmetic<U>::value);
         m_value *= scalar;
         return *this;
     }
@@ -285,10 +286,10 @@ public:
     }
 
     // It only makes sense to divide-assign with a scalar. 
-    template <typename U>
+    template <typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
     quantity& operator/=(U scalar) noexcept 
     {
-        static_assert(std::is_arithmetic<U>::value);
+        //static_assert(std::is_arithmetic<U>::value);
         m_value /= scalar;
         return *this;
     }
@@ -372,7 +373,7 @@ constexpr auto operator*(const quantity<T, D1, R1, Tag>& q1, const quantity<T, D
 }
 
 // Multiply by a scalar.
-template <typename T, typename Tag, typename D, typename R, typename U>
+template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr quantity<T, D, R, Tag> operator*(const quantity<T, D, R, Tag>& q, U scalar) noexcept 
 {
     static_assert(std::is_arithmetic<U>::value);
@@ -380,7 +381,7 @@ constexpr quantity<T, D, R, Tag> operator*(const quantity<T, D, R, Tag>& q, U sc
 }
 
 // Multiply by a scalar.
-template <typename T, typename Tag, typename D, typename R, typename U>
+template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr quantity<T, D, R, Tag> operator*(U scalar, const quantity<T, D, R, Tag>& q) noexcept 
 {
     static_assert(std::is_arithmetic<U>::value);
@@ -400,7 +401,7 @@ constexpr auto operator/(const quantity<T, D1, R1, Tag>& q1, const quantity<T, D
 }
 
 // Divide by a scalar.
-template <typename T, typename Tag, typename D, typename R, typename U>
+template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr quantity<T, D, R, Tag> operator/(const quantity<T, D, R, Tag>& q, U scalar) noexcept 
 {
     static_assert(std::is_arithmetic<U>::value);
@@ -408,7 +409,7 @@ constexpr quantity<T, D, R, Tag> operator/(const quantity<T, D, R, Tag>& q, U sc
 }
 
 // Divide a scalar.
-template <typename T, typename Tag, typename D, typename R, typename U>
+template <typename T, typename Tag, typename D, typename R, typename U, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
 constexpr auto operator/(U scalar, const quantity<T, D, R, Tag>& q) noexcept 
     -> quantity<T, dimension_divide<scalar_d, D>, std::ratio_divide<std::ratio<1>, R>, Tag>
 {
@@ -623,7 +624,7 @@ constexpr T atan(const quantity<T, scalar_d, R, Tag>& q) noexcept
 template <typename T, typename Tag, typename D, typename R1, typename R2>
 constexpr T atan2(const quantity<T, D, R1, Tag>& q1, const quantity<T, D, R2, Tag>& q2) noexcept 
 {
-    return std::atan2(q1.value() * R1::num / R1::den, q2.value() * R2::num / R2::den));
+    return std::atan2(q1.value() * R1::num / R1::den, q2.value() * R2::num / R2::den);
 }
 
 

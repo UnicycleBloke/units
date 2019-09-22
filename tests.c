@@ -21,7 +21,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 /////////////////////////////////////////////////////////////////////////////////////////////
-#pragma once
 #include "units.h"
 #include "quantities.h"
 
@@ -29,26 +28,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Compile time tests
-template <typename T1, typename T2, typename = decltype(std::declval<T1>() + std::declval<T2>())>
-constexpr bool has_add(T1 a, T2 b) { return true; }
-constexpr bool has_add(...)        { return false; }
-
-template <typename T1, typename T2, typename = decltype(std::declval<T1>() - std::declval<T2>())>
-constexpr bool has_sub(T1 a, T2 b) { return true; }
-constexpr bool has_sub(...)        { return false; }
-
-template <typename T1, typename T2, typename = decltype(std::declval<T1>() * std::declval<T2>())>
-constexpr bool has_mul(T1 a, T2 b) { return true; }
-constexpr bool has_mul(...)        { return false; }
-
-template <typename T1, typename T2, typename = decltype(std::declval<T1>() / std::declval<T2>())>
-constexpr bool has_div(T1 a, T2 b) { return true; }
-constexpr bool has_div(...)        { return false; }
-
-template <typename T, typename = decltype(si::exp(std::declval<T>()))>
-constexpr bool has_exp(T)   { return true; }
-constexpr bool has_exp(...) { return false; }
-
 
 // Equivalence of construction methods.
 static_assert(meter_t{100} == 100_m);
@@ -140,11 +119,105 @@ static_assert(1_ms - 3_ms == -2.0_ms);
 static_assert(3_ms - 1_s == -0.997_s);
 static_assert(3_ms - 1_s == -997_ms);
 
-static_assert(has_add(1_m, 1_m));
-static_assert(!has_add(1_m, 1_s));
-static_assert(has_add(1 / 1_Hz , 1_s));
+// Make sure that dividing like quantities creates a scalar, but no of the underlying representation.
+// We rely on this for some of the tests.
+static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m / 1_m)::dim>, si::scalar_d>);
+static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m *= 1)>, decltype(1_m)>);
+static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m /= 1)>, decltype(1_m)>);
+static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m += 1_m)>, decltype(1_m)>);
+static_assert(std::is_same_v<std::remove_reference_t<decltype(1_m -= 1_m)>, decltype(1_m)>);
+
+#define UNITS_EPSILON std::numeric_limits<base_type>::epsilon()
+static_assert((1_mm / 1_m).value() == 1);
+static_assert(std::abs((1_mm / 1_m).scaled_value() - 0.001) < UNITS_EPSILON);
+static_assert(std::is_same_v<decltype(1_mm / 1_m)::ratio, std::milli>);
+
+// We can only add-assign or add values with the same dimension.
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() += std::declval<T2>())>
+constexpr bool has_add_assign(T1 a, T2 b) { return true; }
+constexpr bool has_add_assign(...)        { return false; }
+
+static_assert(has_add_assign(1_m, 1_m) == true);
+static_assert(has_add_assign(1_m, 1_s) == false);
+static_assert(has_add_assign(1_m, 1) == false);
+static_assert(has_add_assign(1, 1_m) == false);
+
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() + std::declval<T2>())>
+constexpr bool has_add(T1 a, T2 b) { return true; }
+constexpr bool has_add(...)        { return false; }
+
+static_assert(has_add(1_m, 1_m) == true);
+static_assert(has_add(1_m, 1_s) == false);
+static_assert(has_add(1_m, 1) == false);
+static_assert(has_add(1, 1_m) == false);
+
+// We can only sub-assign or sub values with the same dimension.
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() -= std::declval<T2>())>
+constexpr bool has_sub_assign(T1 a, T2 b) { return true; }
+constexpr bool has_sub_assign(...)        { return false; }
+
+static_assert(has_sub_assign(1_m, 1_m) == true);
+static_assert(has_sub_assign(1_m, 1_s) == false);
+static_assert(has_sub_assign(1_m, 1) == false);
+static_assert(has_sub_assign(1, 1_m) == false);
+
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() - std::declval<T2>())>
+constexpr bool has_sub(T1 a, T2 b) { return true; }
+constexpr bool has_sub(...)        { return false; }
+
+static_assert(has_sub(1_m, 1_m) == true);
+static_assert(has_sub(1_m, 1_s) == false);
+static_assert(has_sub(1_m, 1) == false);
+static_assert(has_sub(1, 1_m) == false);
+
+// We can only div-assign scalars. Any types are valid for non-assigning div.
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() /= std::declval<T2>())>
+constexpr bool has_div_assign(T1 a, T2 b) { return true; }
+constexpr bool has_div_assign(...)        { return false; }
+
+static_assert(has_div_assign(1_m, 1_m) == false);
+static_assert(has_div_assign(1_m, 1_s) == false);
+static_assert(has_div_assign(1_m, 1_m / 1_m) == true);
+static_assert(has_div_assign(1_m, 1) == true);
+static_assert(has_div_assign(1, 1_m) == false);
+
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() / std::declval<T2>())>
+constexpr bool has_div(T1 a, T2 b) { return true; }
+constexpr bool has_div(...)        { return false; }
+
+static_assert(has_div(1_m, 1_m) == true);
+static_assert(has_div(1_m, 1_s) == true);
+static_assert(has_div(1_m, 1) == true);
+static_assert(has_div(1, 1_m) == true);
+
+// We can only mul-assign scalars. Any types are valid for non-assigning mul.
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() *= std::declval<T2>())>
+constexpr bool has_mul_assign(T1 a, T2 b) { return true; }
+constexpr bool has_mul_assign(...)        { return false; }
+
+static_assert(has_mul_assign(1_m, 1_m) == false);
+static_assert(has_mul_assign(1_m, 1_s) == false);
+static_assert(has_mul_assign(1_m, 1_m / 1_m) == true);
+static_assert(has_mul_assign(1_m, 1) == true);
+static_assert(has_mul_assign(1, 1_m) == false);
+
+template <typename T1, typename T2, typename = decltype(std::declval<T1>() * std::declval<T2>())>
+constexpr bool has_mul(T1 a, T2 b) { return true; }
+constexpr bool has_mul(...)        { return false; }
+
+static_assert(has_mul(1_m, 1_m) == true);
+static_assert(has_mul(1_m, 1_s) == true);
+static_assert(has_mul(1_m, 1) == true);
+static_assert(has_mul(1, 1_m) == true);
+
+template <typename T, typename = decltype(si::exp(std::declval<T>()))>
+constexpr bool has_exp(T)   { return true; }
+constexpr bool has_exp(...) { return false; }
+
 static_assert(!has_exp(1_m));
 static_assert(has_exp(1_m / 1_m));
+
+
 
 // abs(const quantity<T, D, R, Tag>& q) noexcept
 static_assert(si::abs(-123_m) == 123_m);
@@ -160,57 +233,57 @@ static_assert(si::fmin(12_m, 13_m) == 12_m);
 static_assert(si::fmin(-12_m, -13_m) == -13_m);
 // fdim(const quantity<T, D, R1, Tag>& q1, const quantity<T, D, R2, Tag>& q2) noexcept 
 static_assert(si::fdim(12_m, 13_m) == 0_m);
-static_assert(si::fmin(13_m, 12_m) == 1_m);
-static_assert(std::abs(si::fdim(13_m, 12_m).value() - std::fdim(13, 12)) < std::numeric_limits<base_type>::epsilon());
+static_assert(si::fdim(13_m, 12_m) == 1_m);
+static_assert(std::abs(si::fdim(13_m, 12_m).value() - std::fdim(13, 12)) < UNITS_EPSILON);
 
 // // Exponential functions - can take only scalar quantities, and the ratio is normalised.
 // exp(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::exp(3_m / 1_m).value() - std::exp(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::exp(3_m / 1_m) - std::exp(3)) < UNITS_EPSILON);
 // exp2(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::exp2(3_m / 1_m).value() - std::exp2(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::exp2(3_m / 1_m) - std::exp2(3)) < UNITS_EPSILON);
 // expm1(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::expm1(3_m / 1_m).value() - std::expm1(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::expm1(3_m / 1_m) - std::expm1(3)) < UNITS_EPSILON);
 // log(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::log(3_m / 1_m).value() - std::log(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::log(3_m / 1_m) - std::log(3)) < UNITS_EPSILON);
 // log10(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::log10(3_m / 1_m).value() - std::log10(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::log10(3_m / 1_m) - std::log10(3)) < UNITS_EPSILON);
 // log2(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::log2(3_m / 1_m).value() - std::log2(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::log2(3_m / 1_m) - std::log2(3)) < UNITS_EPSILON);
 // log1p(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::log1p(3_m / 1_m).value() - std::log1p(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::log1p(3_m / 1_m) - std::log1p(3)) < UNITS_EPSILON);
 
 // // Power functions - TODO pow, sqrt and cbrt
 // hypot(const quantity<T, D, R1, Tag>& q1, const quantity<T, D, R2, Tag>& q2) noexcept 
 
 // // Trigonometric functions - can take only scalar quantities, and the ratio is normalised.
 // sin(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::sin(3_m / 1_m).value() - std::sin(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::sin(3_m / 1_m) - std::sin(3)) < UNITS_EPSILON);
 // cos(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::cos(3_m / 1_m).value() - std::cos(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::cos(3_m / 1_m) - std::cos(3)) < UNITS_EPSILON);
 // tan(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::tan(3_m / 1_m).value() - std::tan(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::tan(3_m / 1_m) - std::tan(3)) < UNITS_EPSILON);
 // asin(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::asin(1_m / 3_m).value() - std::asin(1./3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::asin(1_m / 3_m) - std::asin(1./3)) < UNITS_EPSILON);
 // acos(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::acos(1_m / 3_m).value() - std::acos(1./3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::acos(1_m / 3_m) - std::acos(1./3)) < UNITS_EPSILON);
 // atan(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::atan(1_m / 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::atan(1_m / 3_m) - std::atan(1./3)) < UNITS_EPSILON);
 // atan2(const quantity<T, D, R1, Tag>& q1, const quantity<T, D, R2, Tag>& q2) noexcept 
-static_assert(std::abs(si::atan2(1_m, 3_m).value() - std::atan(1./3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::atan2(1_m, 3_m) - std::atan(1./3)) < UNITS_EPSILON);
 
 // // Hyperbolic functions - can take only scalar quantities, and the ratio is normalised.
 // sinh(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::sinh(3_m / 1_m).value() - std::sinh(3)) < 2*std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::sinh(3_m / 1_m) - std::sinh(3)) < 2*UNITS_EPSILON);
 // cosh(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::cosh(3_m / 1_m).value() - std::cosh(3)) < 3*std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::cosh(3_m / 1_m) - std::cosh(3)) < 3*UNITS_EPSILON);
 // tanh(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::tanh(3_m / 1_m).value() - std::tanh(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::tanh(3_m / 1_m) - std::tanh(3)) < UNITS_EPSILON);
 // asinh(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::asinh(1_m / 3_m).value() - std::asinh(1./3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::asinh(1_m / 3_m) - std::asinh(1./3)) < UNITS_EPSILON);
 // acosh(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::acosh(9_m / 3_m).value() - std::acosh(3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::acosh(9_m / 3_m) - std::acosh(3)) < UNITS_EPSILON);
 // atanh(const quantity<T, scalar_d, R, Tag>& q) noexcept
-static_assert(std::abs(si::atanh(1_m / 3_m).value() - std::atanh(1./3)) < std::numeric_limits<base_type>::epsilon());
+static_assert(std::abs(si::atanh(1_m / 3_m) - std::atanh(1./3)) < UNITS_EPSILON);
 
 // //Error and gamma functions 
 // erf(const quantity<T, scalar_d, R, Tag>& q) noexcept
@@ -218,7 +291,7 @@ static_assert(std::abs(si::atanh(1_m / 3_m).value() - std::atanh(1./3)) < std::n
 // tgamma(const quantity<T, scalar_d, R, Tag>& q) noexcept
 // lgamma(const quantity<T, scalar_d, R, Tag>& q) noexcept
 
-// // Nearest integer floating point operations 
+// // Nearest integer floating point operations
 // ceil(const quantity<T, D, R, Tag>& q) noexcept 
 static_assert(si::ceil(123.1_m) == 124_m);
 static_assert(si::ceil(-123.1_m) == -123_m);
@@ -246,4 +319,16 @@ base_type test_double(base_type m, base_type s)
 auto test_units(meter_t m, second_t s)
 {
     return m * m * m / s;
+}
+
+
+int main()
+{
+    auto add = 12_m;
+    assert((add += 3_m) == 15_m);
+    assert((add += 3_cm) == 15.03_m);
+
+    auto sub = 12_m;
+    assert((sub -= 3_m) == 9_m);
+    assert((sub -= 3_cm) == 8.97_m);
 }
